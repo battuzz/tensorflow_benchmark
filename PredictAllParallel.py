@@ -1,4 +1,5 @@
 import tensorflow as tf
+import pandas as pd
 import numpy as np
 from time import time
 from threading import Thread
@@ -10,8 +11,10 @@ import math
 from keras.datasets import cifar10
 from sklearn.metrics import accuracy_score
 
-BATCH_SIZE = 32
-CPU_BATCHES = 20
+CPU_PERCENTAGES = np.linspace(0, 1, 11)       # 10 values from 0 to 1 (inclusive)
+BATCHES = [1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+NRUNS = 3
+
 
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 
@@ -55,7 +58,7 @@ def load_model_cpu_gpu(modelname):
     return cpu, gpu, x
    
 def predict_cpu_gpu(cpu, data_cpu, gpu, data_gpu, x):
-    with tf.Session(config=tf.ConfigProto(log_device_placement=True, intra_op_parallelism_threads=8)) as sess:
+    with tf.Session(config=tf.ConfigProto(log_device_placement=False, intra_op_parallelism_threads=8)) as sess:
         sess.run(tf.global_variables_initializer())
 
         coord = tf.train.Coordinator()
@@ -78,26 +81,41 @@ def predict_cpu_gpu(cpu, data_cpu, gpu, data_gpu, x):
 
     return (t1 - t0)
 
-def predict_parallel(modelname, batch_size, data, cpu_percentage = [0.5], nruns = 1):
-    batches = split_in_batches(data, batch_size)
-    nbatches = len(batches)
+def predict_parallel(modelname, data, batch_sizes = [1], cpu_percentage = [0.5], nruns = 1):
     cpu, gpu, x = load_model_cpu_gpu(modelname)
     
-    for cpu_perc in cpu_percentage:
-        batches_cpu = int(nbatches * cpu_perc)
-        data_cpu = batches[:batches_cpu]
-        data_gpu = batches[batches_cpu:]
-        times = []
-        for run in range(nruns):
-            print ("Running run {0} using {1}% CPU".format(run, cpu_perc))
-            
-            time_spent = predict_cpu_gpu(cpu, data_cpu, gpu, data_gpu, x)
-            print(time_spent)
-            
-            times.append(time_spent)
+    results = []
+    for batch_size in batch_sizes:
+        batches = split_in_batches(data, batch_size)
+        nbatches = len(batches)
         
-        print ("Average time: {0}".format(sum(times)/len(times)))
+        for cpu_perc in cpu_percentage:
+            batches_cpu = int(nbatches * cpu_perc)
+            data_cpu = batches[:batches_cpu]
+            data_gpu = batches[batches_cpu:]
             
-predict_parallel('model1.h5', 64, x_test, nruns = 10)
+            tmp_sum = 0
+            for run in range(nruns):
+                print ("Running run {0} using {1:.2f}% CPU".format(run, cpu_perc))
+                
+                time_spent = predict_cpu_gpu(cpu, data_cpu, gpu, data_gpu, x)
+                print(time_spent)
+                tmp_sum += time_spent
+                
+                results.append([batch_size, cpu_perc, run, time_spent])
+
+            print ("Average time: {0:.4f}".format(tmp_sum / nruns))
+        
+    return results
+            
+
+def evaluate_model(modelname):
+    results = predict_parallel(modelname, x_test, BATCHES, CPU_PERCENTAGES, NRUNS)
+    
+    results_df = pd.DataFrame(results, columns = ['BATCH_SIZE', 'CPU_PERC', 'RUN', 'TIME'])
+    basename = modelname[:modelname.rfind('.')]
+    results_df.to_csv(basename + '.csv', index=None)
+
+evaluate_model('model1.h5')
 
 import gc; gc.collect()
