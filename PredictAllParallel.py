@@ -74,8 +74,10 @@ def predict_cpu_gpu(cpu, data_cpu, gpu, data_gpu, x):
         for t in threads:
             t.start()
 
-        coord.join(threads)
-
+        #coord.join(threads)
+        for t in threads:
+            t.join()
+        
         t1 = time()
 
 
@@ -96,10 +98,10 @@ def predict_parallel(modelname, data, batch_sizes = [1], cpu_percentage = [0.5],
             
             tmp_sum = 0
             for run in range(nruns):
-                print ("Running run {0} using {1:.2f}% CPU".format(run, cpu_perc))
+                print ("Running run {0} using {1:.2f}% CPU........".format(run, cpu_perc))
                 
                 time_spent = predict_cpu_gpu(cpu, data_cpu, gpu, data_gpu, x)
-                print(time_spent)
+                print('{0:.5f}'.format(time_spent))
                 tmp_sum += time_spent
                 
                 results.append([batch_size, cpu_perc, run, time_spent])
@@ -116,6 +118,11 @@ def evaluate_model(modelname):
     basename = modelname[:modelname.rfind('.')]
     results_df.to_csv(basename + '.csv', index=None)
 
-evaluate_model('model1.h5')
+for model in glob.glob('model_*'):
+    try:
+        evaluate_model(model)
+    except Exception as e:
+        print (e)
+
 
 import gc; gc.collect()
