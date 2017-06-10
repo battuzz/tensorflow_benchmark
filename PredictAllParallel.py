@@ -12,8 +12,13 @@ from keras.datasets import cifar10
 from sklearn.metrics import accuracy_score
 
 CPU_PERCENTAGES = np.linspace(0, 1, 11)       # 10 values from 0 to 1 (inclusive)
-BATCHES = [1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+#BATCHES = [1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048]
+BATCHES = [2, 4]
 NRUNS = 3
+
+MODELS_FOLDER = 'models'
+RESULTS_FOLDER = 'results'
+
 
 
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
@@ -115,10 +120,16 @@ def evaluate_model(modelname):
     results = predict_parallel(modelname, x_test, BATCHES, CPU_PERCENTAGES, NRUNS)
     
     results_df = pd.DataFrame(results, columns = ['BATCH_SIZE', 'CPU_PERC', 'RUN', 'TIME'])
-    basename = modelname[:modelname.rfind('.')]
-    results_df.to_csv(basename + '.csv', index=None)
+    
+    basename = os.path.basename(modelname)[:modelname.rfind('.')]
+    
+    outfolder = os.path.join(RESULTS_FOLDER, basename + '.csv')
+    results_df.to_csv(outfolder, index=None)
 
-for model in glob.glob('model_*'):
+    
+    
+infolder = os.path.join(MODELS_FOLDER, 'model_*')
+for model in glob.glob(infolder):
     try:
         evaluate_model(model)
     except Exception as e:
