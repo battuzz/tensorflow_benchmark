@@ -2,14 +2,16 @@ from keras.models import load_model
 import glob
 from keras.datasets import cifar10
 from sklearn.metrics import accuracy_score
+import os
 
+MODEL_DIR = 'models'
 
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 
 x_test = x_test.astype('float32')
 x_test /= 255
 
-for model in glob.glob("*.h5"):
+for model in glob.glob(os.path.join(MODEL_DIR, "*.h5")):
     print ("Loading model {0}".format(model), end = '')
     
     x = load_model(model)
